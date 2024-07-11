@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -21,7 +22,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	status := "200 OK"
+	var statuses = map[int]string{
+		200: "200 OK",
+		404: "404 Not Found",
+	}
 
-	conn.Write([]byte(fmt.Sprintf("%s %s\r\n\r\n", httpVer, status)))
+	var req = make([]byte, 500)
+	conn.Read(req)
+
+	reqStr := string(req)
+	fmt.Printf("hello, %s", reqStr)
+	lines := strings.Split(reqStr, "\r\n")
+
+	reqLine := lines[0]
+	segments := strings.Split(reqLine, " ")
+	// method := segments[0]
+	target := segments[1]
+	// version := segments[2]
+
+	var statusCode int
+	switch target {
+	case "/":
+		statusCode = 200
+	default:
+		statusCode = 404
+	}
+
+	_, err = conn.Write([]byte(fmt.Sprintf("%s %s\r\n\r\n", httpVer, statuses[statusCode])))
+	if err != nil {
+		fmt.Println("Error writing response: ", err.Error())
+		os.Exit(1)
+	}
 }
