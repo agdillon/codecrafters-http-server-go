@@ -48,8 +48,9 @@ func main() {
 		respHeaders map[string]string
 		echoStr     string
 	)
+	// match against /echo/{str} and extract parameter
 	echoMatches := echoPath.FindStringSubmatch(target)
-	if echoMatches != nil {
+	if len(echoMatches) >= 2 {
 		echoStr = echoMatches[1]
 	}
 
@@ -75,8 +76,8 @@ func main() {
 		respLines = append(respLines, fmt.Sprintf("%s: %s\r\n", k, v))
 	}
 	// separator between headers and body
-	respLines = append(respLines, fmt.Sprint("\r\n"))
-	// body
+	respLines = append(respLines, "\r\n")
+	// body -- this won't work for different response bodies, only echo or empty
 	respLines = append(respLines, echoStr)
 
 	for _, l := range respLines {
