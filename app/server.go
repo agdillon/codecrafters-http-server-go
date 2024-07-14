@@ -43,10 +43,15 @@ func main() {
 	target := segments[1]
 	// version := segments[2]
 
-	var statusCode int
-	var respHeaders map[string]string
+	var (
+		statusCode  int
+		respHeaders map[string]string
+		echoStr     string
+	)
 	echoMatches := echoPath.FindStringSubmatch(target)
-	echoStr := echoMatches[1]
+	if echoMatches != nil {
+		echoStr = echoMatches[1]
+	}
 
 	switch {
 	case echoMatches != nil:
