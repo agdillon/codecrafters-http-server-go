@@ -20,6 +20,7 @@ var statuses = map[int]string{
 var echoPath = regexp.MustCompile(`^/echo/(.*)`)
 
 func main() {
+	// listen for connections
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
@@ -35,7 +36,7 @@ func main() {
 	// read request
 	scanner := bufio.NewScanner(conn)
 
-	// only reading the first line for now
+	// read request line
 	_ = scanner.Scan()
 	line := scanner.Text()
 	segments := strings.Split(line, " ")
@@ -43,10 +44,28 @@ func main() {
 	target := segments[1]
 	// version := segments[2]
 
+	// read headers
+	reqHeaders := map[string]string{}
+	for {
+		more := scanner.Scan()
+		line := scanner.Text()
+		kv := strings.Split(line, ":")
+		if len(kv) >= 2 {
+			headerName := strings.ToLower(strings.TrimSpace(kv[0]))
+			reqHeaders[headerName] = strings.TrimSpace(kv[1])
+		}
+
+		if line == "" || !more {
+			// handle errors here
+			break
+		}
+	}
+
 	var (
-		statusCode  int
-		respHeaders map[string]string
 		echoStr     string
+		respBody    string
+		respHeaders map[string]string
+		statusCode  int
 	)
 	// match against /echo/{str} and extract parameter
 	echoMatches := echoPath.FindStringSubmatch(target)
@@ -56,15 +75,22 @@ func main() {
 
 	switch {
 	case echoMatches != nil:
-		respHeaders = map[string]string{
-			"Content-Type":   "text/plain",
-			"Content-Length": fmt.Sprintf("%d", len(echoStr)),
-		}
-		fallthrough
+		respBody = echoStr
+		statusCode = 200
+	case target == "/user-agent":
+		respBody = reqHeaders["user-agent"]
+		statusCode = 200
 	case target == "/":
 		statusCode = 200
 	default:
 		statusCode = 404
+	}
+
+	if len(respBody) > 0 {
+		respHeaders = map[string]string{
+			"Content-Type":   "text/plain",
+			"Content-Length": fmt.Sprintf("%d", len(respBody)),
+		}
 	}
 
 	// respond
@@ -77,8 +103,8 @@ func main() {
 	}
 	// separator between headers and body
 	respLines = append(respLines, "\r\n")
-	// body -- this won't work for different response bodies, only echo or empty
-	respLines = append(respLines, echoStr)
+	// body
+	respLines = append(respLines, respBody)
 
 	for _, l := range respLines {
 		_, err = fmt.Fprint(conn, l)
