@@ -27,12 +27,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
 
+		go handleRequest(conn)
+	}
+}
+
+func handleRequest(conn net.Conn) {
 	// read request
 	scanner := bufio.NewScanner(conn)
 
@@ -107,7 +113,7 @@ func main() {
 	respLines = append(respLines, respBody)
 
 	for _, l := range respLines {
-		_, err = fmt.Fprint(conn, l)
+		_, err := fmt.Fprint(conn, l)
 		if err != nil {
 			fmt.Println("Error writing response: ", err.Error())
 			os.Exit(1)
