@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -18,8 +19,17 @@ var statuses = map[int]string{
 
 // technically the . should be only characters allowed in a URL
 var echoPath = regexp.MustCompile(`^/echo/(.*)`)
+var filesPath = regexp.MustCompile(`^/files/(.*)`)
 
 func main() {
+	// handle command line flag for files directory
+	directory := flag.String("directory", "/tmp/", "absolute path to directory to read files for file endpoint")
+	flag.Parse()
+	directoryStr := *directory
+	if string(directoryStr[len(*directory)-1]) != "/" {
+		directoryStr = directoryStr + "/"
+	}
+
 	// listen for connections
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
@@ -34,11 +44,11 @@ func main() {
 			os.Exit(1)
 		}
 
-		go handleRequest(conn)
+		go handleRequest(conn, directoryStr)
 	}
 }
 
-func handleRequest(conn net.Conn) {
+func handleRequest(conn net.Conn, directoryStr string) {
 	// read request
 	scanner := bufio.NewScanner(conn)
 
@@ -69,6 +79,7 @@ func handleRequest(conn net.Conn) {
 
 	var (
 		echoStr     string
+		filesStr    string
 		respBody    string
 		respHeaders map[string]string
 		statusCode  int
@@ -79,24 +90,44 @@ func handleRequest(conn net.Conn) {
 		echoStr = echoMatches[1]
 	}
 
+	// match against /files/{filename} and extract parameter
+	// TODO - combine this with echo
+	filesMatches := filesPath.FindStringSubmatch(target)
+	if len(filesMatches) >= 2 {
+		filesStr = filesMatches[1]
+	}
+
 	switch {
 	case echoMatches != nil:
 		respBody = echoStr
+		respHeaders = map[string]string{
+			"Content-Type":   "text/plain",
+			"Content-Length": fmt.Sprintf("%d", len(respBody)),
+		}
 		statusCode = 200
+	case filesMatches != nil:
+		dat, err := os.ReadFile(fmt.Sprintf("/%s%s", directoryStr, filesStr))
+		if err != nil {
+			statusCode = 404
+		} else {
+			respBody = string(dat)
+			respHeaders = map[string]string{
+				"Content-Type":   "application/octet-stream",
+				"Content-Length": fmt.Sprintf("%d", len(respBody)),
+			}
+			statusCode = 200
+		}
 	case target == "/user-agent":
 		respBody = reqHeaders["user-agent"]
+		respHeaders = map[string]string{
+			"Content-Type":   "text/plain",
+			"Content-Length": fmt.Sprintf("%d", len(respBody)),
+		}
 		statusCode = 200
 	case target == "/":
 		statusCode = 200
 	default:
 		statusCode = 404
-	}
-
-	if len(respBody) > 0 {
-		respHeaders = map[string]string{
-			"Content-Type":   "text/plain",
-			"Content-Length": fmt.Sprintf("%d", len(respBody)),
-		}
 	}
 
 	// respond
